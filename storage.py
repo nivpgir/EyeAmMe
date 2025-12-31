@@ -9,17 +9,19 @@ import json
 from typing import Optional, List, Dict
 from cryptography.fernet import Fernet
 
+from .config import settings
+
 # R2 Configuration
-R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
-R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
-R2_ENDPOINT = os.getenv("R2_ENDPOINT")
+# R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
+# R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+# R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+# R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+# R2_ENDPOINT = os.getenv("R2_ENDPOINT")
 
 # Encryption key (generate with: Fernet.generate_key())
 ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 
-if not all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME]):
+if not all([settings.r2_account_id, settings.r2_access_key_id, settings.r2_secret_access_key, settings.r2_bucket_name]):
     raise ValueError("R2 configuration environment variables are not set")
 
 if not ENCRYPTION_KEY:
@@ -31,9 +33,9 @@ cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str)
 # Initialize S3 client for R2
 s3_client = boto3.client(
     "s3",
-    endpoint_url=R2_ENDPOINT,
-    aws_access_key_id=R2_ACCESS_KEY_ID,
-    aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+    endpoint_url=settings.r2_endpoint,
+    aws_access_key_id=settings.r2_access_key_id,
+    aws_secret_access_key=settings.r2_secret_access_key,
     config=Config(signature_version="s3v4"),
     region_name="auto",
 )
@@ -52,11 +54,11 @@ def decrypt_data(encrypted_data: bytes) -> bytes:
 async def upload_file_to_r2(key: str, content: bytes) -> bool:
     """
     Upload a file to R2 with encryption.
-    
+
     Args:
         key: Object key in R2 bucket
         content: File content as bytes
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -66,7 +68,7 @@ async def upload_file_to_r2(key: str, content: bytes) -> bool:
 
         # Upload to R2
         s3_client.put_object(
-            Bucket=R2_BUCKET_NAME,
+            Bucket=settings.r2_bucket_name,
             Key=key,
             Body=encrypted_content,
         )
@@ -79,15 +81,15 @@ async def upload_file_to_r2(key: str, content: bytes) -> bool:
 async def download_file_from_r2(key: str) -> Optional[bytes]:
     """
     Download and decrypt a file from R2.
-    
+
     Args:
         key: Object key in R2 bucket
-        
+
     Returns:
         Decrypted file content as bytes, or None if not found
     """
     try:
-        response = s3_client.get_object(Bucket=R2_BUCKET_NAME, Key=key)
+        response = s3_client.get_object(Bucket=settings.r2_bucket_name, Key=key)
         encrypted_content = response["Body"].read()
 
         # Decrypt content
@@ -103,15 +105,15 @@ async def download_file_from_r2(key: str) -> Optional[bytes]:
 async def delete_file_from_r2(key: str) -> bool:
     """
     Delete a file from R2.
-    
+
     Args:
         key: Object key in R2 bucket
-        
+
     Returns:
         True if successful, False otherwise
     """
     try:
-        s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+        s3_client.delete_object(Bucket=settings.r2_bucket_name, Key=key)
         return True
     except ClientError as e:
         print(f"Error deleting from R2: {e}")
@@ -121,15 +123,15 @@ async def delete_file_from_r2(key: str) -> bool:
 async def list_objects_with_prefix(prefix: str) -> List[str]:
     """
     List all object keys with a given prefix.
-    
+
     Args:
         prefix: Prefix to filter objects
-        
+
     Returns:
         List of object keys
     """
     try:
-        response = s3_client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix=prefix)
+        response = s3_client.list_objects_v2(Bucket=settings.r2_bucket_name, Prefix=prefix)
         if "Contents" not in response:
             return []
 
@@ -142,11 +144,11 @@ async def list_objects_with_prefix(prefix: str) -> List[str]:
 async def save_json_to_r2(key: str, data: dict) -> bool:
     """
     Save a JSON object to R2 with encryption.
-    
+
     Args:
         key: Object key in R2 bucket
         data: Dictionary to save as JSON
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -161,10 +163,10 @@ async def save_json_to_r2(key: str, data: dict) -> bool:
 async def load_json_from_r2(key: str) -> Optional[dict]:
     """
     Load a JSON object from R2 with decryption.
-    
+
     Args:
         key: Object key in R2 bucket
-        
+
     Returns:
         Dictionary parsed from JSON, or None if not found
     """
@@ -182,10 +184,10 @@ async def load_json_from_r2(key: str) -> Optional[dict]:
 async def list_user_files(user_id: str) -> List[Dict]:
     """
     List all files uploaded by a specific user.
-    
+
     Args:
         user_id: User's unique identifier
-        
+
     Returns:
         List of file metadata dictionaries
     """
@@ -216,11 +218,11 @@ async def list_user_files(user_id: str) -> List[Dict]:
 async def delete_user_file(user_id: str, file_id: str) -> bool:
     """
     Delete all data associated with a file (file, metadata, report).
-    
+
     Args:
         user_id: User's unique identifier
         file_id: File's unique identifier
-        
+
     Returns:
         True if successful, False otherwise
     """
@@ -249,7 +251,7 @@ async def delete_user_file(user_id: str, file_id: str) -> bool:
 async def get_all_user_ids() -> List[str]:
     """
     Get all user IDs from the users index.
-    
+
     Returns:
         List of user IDs
     """
