@@ -4,25 +4,25 @@ from typing import List
 
 class Settings(BaseSettings):
     # Security
-    SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    secret_key: str
+    algorithm: str = "hs256"
+    access_token_expire_minutes: int = 30
 
     # Data retention
-    DATA_RETENTION_DAYS: int = 60
+    data_retention_days: int = 60
 
     # Cloudflare R2
-    R2_ACCOUNT_ID: str
-    R2_ACCESS_KEY_ID: str
-    R2_SECRET_ACCESS_KEY: str
-    R2_BUCKET_NAME: str
-    R2_ENDPOINT_URL: str
+    r2_account_id: str
+    r2_access_key_id: str
+    r2_secret_access_key: str
+    r2_bucket_name: str
+    r2_endpoint_url: str
 
-    # Encryption
-    ENCRYPTION_KEY: str
+    # encryption
+    encryption_key: str
 
-    # CORS
-    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    # cors
+    allowed_origins: str = "http://localhost:3000"
 
     @property
     def allowed_origins_list(self) -> List[str]:
