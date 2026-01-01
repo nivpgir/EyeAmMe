@@ -9,7 +9,8 @@ import json
 from typing import Optional, List, Dict
 from cryptography.fernet import Fernet
 
-from .config import settings
+from .config import Settings
+settings = Settings()
 
 # R2 Configuration
 # R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
@@ -19,21 +20,16 @@ from .config import settings
 # R2_ENDPOINT = os.getenv("R2_ENDPOINT")
 
 # Encryption key (generate with: Fernet.generate_key())
-ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
-
 if not all([settings.r2_account_id, settings.r2_access_key_id, settings.r2_secret_access_key, settings.r2_bucket_name]):
     raise ValueError("R2 configuration environment variables are not set")
 
-if not ENCRYPTION_KEY:
-    raise ValueError("ENCRYPTION_KEY environment variable is not set")
-
 # Initialize Fernet cipher
-cipher_suite = Fernet(ENCRYPTION_KEY.encode() if isinstance(ENCRYPTION_KEY, str) else ENCRYPTION_KEY)
+cipher_suite = Fernet(settings.encryption_key.encode() if isinstance(settings.encryption_key, str) else settings.encryption_key)
 
 # Initialize S3 client for R2
 s3_client = boto3.client(
     "s3",
-    endpoint_url=settings.r2_endpoint,
+    endpoint_url=settings.r2_endpoint_url,
     aws_access_key_id=settings.r2_access_key_id,
     aws_secret_access_key=settings.r2_secret_access_key,
     config=Config(signature_version="s3v4"),

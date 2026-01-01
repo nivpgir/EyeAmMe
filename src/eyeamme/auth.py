@@ -9,7 +9,7 @@ import uuid
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from storage import save_json_to_r2, load_json_from_r2
+from .storage import save_json_to_r2, load_json_from_r2
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")

@@ -10,14 +10,14 @@ import os
 from datetime import datetime
 import uuid
 
-from auth import (
+from .auth import (
     create_user,
     authenticate_user,
     create_access_token,
     decode_access_token,
     get_password_hash,
 )
-from storage import (
+from .storage import (
     upload_file_to_r2,
     download_file_from_r2,
     delete_file_from_r2,
@@ -25,9 +25,9 @@ from storage import (
     save_json_to_r2,
     load_json_from_r2,
 )
-from analysis import analyze_excel
-from scheduler import start_scheduler
-from models import UserCreate, UserLogin, FileMetadata, AnalysisReport
+from .analysis import analyze_excel
+from .scheduler import start_scheduler
+from .models import UserCreate, UserLogin, FileMetadata, AnalysisReport
 
 # Initialize FastAPI app
 app = FastAPI(
