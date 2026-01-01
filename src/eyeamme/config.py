@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # cors
     allowed_origins: str = "http://localhost:3000"
 
+    log_level: str | int = "INFO"
+
     @property
     def allowed_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.allowed_origins.split(",")]
