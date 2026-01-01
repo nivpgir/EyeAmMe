@@ -30,5 +30,5 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = False
-
-settings = Settings()
+        env_file = ".env"
+        extra = 'ignore'
