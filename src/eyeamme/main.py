@@ -1,11 +1,12 @@
 """
 Excel Analysis System - Main FastAPI Application
 """
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import Optional
 import os
 from datetime import datetime
 import uuid
@@ -15,7 +16,6 @@ from .auth import (
     authenticate_user,
     create_access_token,
     decode_access_token,
-    get_password_hash,
 )
 from .storage import (
     upload_file_to_r2,
@@ -27,135 +27,169 @@ from .storage import (
 )
 from .analysis import analyze_excel
 from .scheduler import start_scheduler
-from .models import UserCreate, UserLogin, FileMetadata, AnalysisReport
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Excel Analysis System",
-    description="Secure Excel file analysis with automated data retention",
+    description="Simple Excel file analysis",
     version="1.0.0",
 )
 
-# CORS configuration
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Setup templates and static files
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Security
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
-# Dependency to get current user from JWT token
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> str:
-    """Extract and validate user ID from JWT token."""
-    token = credentials.credentials
-    user_id = decode_access_token(token)
+# Helper function to get user from cookie
+def get_user_from_cookie(request: Request) -> Optional[str]:
+    """Extract user ID from session cookie."""
+    token = request.cookies.get("session_token")
+    if not token:
+        return None
+    return decode_access_token(token)
+
+
+def require_auth(request: Request):
+    """Dependency to require authentication."""
+    user_id = get_user_from_cookie(request)
     if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-        )
+        raise HTTPException(status_code=302, headers={"Location": "/login"})
     return user_id
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint for monitoring."""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "version": "1.0.0",
-    }
+# ============================================================================
+# HTML PAGES
+# ============================================================================
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    """Redirect to dashboard or login."""
+    user_id = get_user_from_cookie(request)
+    if user_id:
+        return RedirectResponse(url="/dashboard")
+    return RedirectResponse(url="/login")
 
 
-# Authentication endpoints
-@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
-async def register(user: UserCreate):
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Login/Register page."""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request, user_id: str = Depends(require_auth)):
+    """Dashboard with file upload and list."""
+    try:
+        # Get user info
+        user_data = await load_json_from_r2(f"users/{user_id}/profile.json")
+        
+        # Get user's files
+        files = await list_user_files(user_id)
+        
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "user": user_data,
+                "files": files,
+            },
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/report/{file_id}", response_class=HTMLResponse)
+async def report_page(
+    request: Request, file_id: str, user_id: str = Depends(require_auth)
+):
+    """View analysis report."""
+    try:
+        # Get report
+        report_key = f"users/{user_id}/files/{file_id}/report.json"
+        report = await load_json_from_r2(report_key)
+
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        return templates.TemplateResponse(
+            "report.html", {"request": request, "report": report}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
+
+@app.post("/api/register")
+async def register(request: Request, email: str = Form(...), password: str = Form(...), full_name: str = Form(...)):
     """Register a new user."""
     try:
-        user_id = await create_user(user.email, user.password, user.full_name)
-        return {
-            "message": "User created successfully",
-            "user_id": user_id,
-        }
+        user_id = await create_user(email, password, full_name)
+        
+        # Create session token
+        token = create_access_token(data={"sub": user_id})
+        
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400)
+        return response
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create user",
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": str(e), "tab": "register"},
+            status_code=400,
         )
 
 
-@app.post("/api/auth/login")
-async def login(user: UserLogin):
-    """Authenticate user and return JWT token."""
-    user_data = await authenticate_user(user.email, user.password)
+@app.post("/api/login")
+async def login(request: Request, email: str = Form(...), password: str = Form(...)):
+    """Authenticate user."""
+    user_data = await authenticate_user(email, password)
     if not user_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Invalid email or password"},
+            status_code=401,
         )
 
-    access_token = create_access_token(data={"sub": user_data["user_id"]})
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "user_id": user_data["user_id"],
-            "email": user_data["email"],
-            "full_name": user_data["full_name"],
-        },
-    }
-
-
-@app.get("/api/auth/me")
-async def get_current_user_info(user_id: str = Depends(get_current_user)):
-    """Get current user information."""
-    try:
-        user_data = await load_json_from_r2(f"users/{user_id}/profile.json")
-        if not user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-            )
-
-        return {
-            "user_id": user_data["user_id"],
-            "email": user_data["email"],
-            "full_name": user_data["full_name"],
-            "created_at": user_data["created_at"],
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch user information",
-        )
-
-
-# File management endpoints
-@app.post("/api/files/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user),
-):
-    """
-    Upload an Excel file for analysis.
+    # Create session token
+    token = create_access_token(data={"sub": user_data["user_id"]})
     
-    The file is encrypted and stored in R2, then analyzed automatically.
-    """
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400)
+    return response
+
+
+@app.get("/api/logout")
+async def logout():
+    """Logout user."""
+    response = RedirectResponse(url="/login")
+    response.delete_cookie(key="session_token")
+    return response
+
+
+@app.post("/api/upload")
+async def upload_file(
+    request: Request,
+    file: UploadFile = File(...),
+    user_id: str = Depends(require_auth),
+):
+    """Upload and analyze Excel file."""
     # Validate file type
     if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only Excel files (.xlsx, .xls) are allowed",
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "error": "Only Excel files (.xlsx, .xls) are allowed",
+                "files": await list_user_files(user_id),
+            },
+            status_code=400,
         )
 
     try:
@@ -215,102 +249,39 @@ async def upload_file(
             metadata["analysis_date"] = report["analysis_date"]
             await save_json_to_r2(metadata_key, metadata)
 
-            return {
-                "message": "File uploaded and analyzed successfully",
-                "file_id": file_id,
-                "filename": file.filename,
-                "status": "completed",
-            }
-
         except Exception as e:
             # Update metadata status to failed
             metadata["status"] = "failed"
             metadata["error"] = str(e)
             await save_json_to_r2(metadata_key, metadata)
 
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Analysis failed: {str(e)}",
-            )
+        # Redirect back to dashboard
+        return RedirectResponse(url="/dashboard", status_code=302)
 
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"File upload failed: {str(e)}",
+        return templates.TemplateResponse(
+            "dashboard.html",
+            {
+                "request": request,
+                "error": f"Upload failed: {str(e)}",
+                "files": await list_user_files(user_id),
+            },
+            status_code=500,
         )
 
 
-@app.get("/api/files")
-async def list_files(user_id: str = Depends(get_current_user)):
-    """List all files uploaded by the current user."""
+@app.post("/api/delete/{file_id}")
+async def delete_file_endpoint(
+    request: Request, file_id: str, user_id: str = Depends(require_auth)
+):
+    """Delete a file."""
     try:
-        files = await list_user_files(user_id)
-        return {"files": files}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list files",
-        )
-
-
-@app.get("/api/files/{file_id}")
-async def get_file_info(file_id: str, user_id: str = Depends(get_current_user)):
-    """Get metadata for a specific file."""
-    try:
+        # Get metadata first
         metadata_key = f"users/{user_id}/files/{file_id}/metadata.json"
         metadata = await load_json_from_r2(metadata_key)
 
         if not metadata:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
-            )
-
-        return metadata
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch file information",
-        )
-
-
-@app.get("/api/files/{file_id}/report")
-async def get_analysis_report(file_id: str, user_id: str = Depends(get_current_user)):
-    """Get the analysis report for a specific file."""
-    try:
-        report_key = f"users/{user_id}/files/{file_id}/report.json"
-        report = await load_json_from_r2(report_key)
-
-        if not report:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
-            )
-
-        return report
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch analysis report",
-        )
-
-
-@app.delete("/api/files/{file_id}")
-async def delete_file(file_id: str, user_id: str = Depends(get_current_user)):
-    """Delete a file and its associated data."""
-    try:
-        # Get metadata first to check if file exists
-        metadata_key = f"users/{user_id}/files/{file_id}/metadata.json"
-        metadata = await load_json_from_r2(metadata_key)
-
-        if not metadata:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
-            )
+            raise HTTPException(status_code=404, detail="File not found")
 
         # Delete all associated files
         file_key = metadata["file_key"]
@@ -320,25 +291,29 @@ async def delete_file(file_id: str, user_id: str = Depends(get_current_user)):
         await delete_file_from_r2(metadata_key)
         await delete_file_from_r2(report_key)
 
-        return {"message": "File deleted successfully"}
-    except HTTPException:
-        raise
+        return RedirectResponse(url="/dashboard", status_code=302)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete file",
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# Start the scheduler for data retention cleanup
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+# Start scheduler on startup
 @app.on_event("startup")
 async def startup_event():
-    """Start background tasks on application startup."""
+    """Start background tasks."""
     start_scheduler()
     print("✅ Scheduler started - Data retention cleanup active")
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
