@@ -10,15 +10,15 @@ from typing import Dict, Any
 def analyze_excel(file_path: str) -> Dict[str, Any]:
     """
     Analyze an Excel file and return results.
-    
+
     This is a PLACEHOLDER function. Replace this with your actual analysis logic.
-    
+
     Args:
         file_path: Path to the Excel file to analyze
-        
+
     Returns:
         Dictionary containing analysis results
-        
+
     Example return structure:
     {
         "summary": {
@@ -49,11 +49,11 @@ def analyze_excel(file_path: str) -> Dict[str, Any]:
     try:
         # Read the Excel file
         df = pd.read_excel(file_path)
-        
+
         # ==========================================
         # TODO: REPLACE THIS WITH YOUR ANALYSIS CODE
         # ==========================================
-        
+
         # Basic example analysis (REPLACE THIS)
         result = {
             "summary": {
@@ -75,7 +75,7 @@ def analyze_excel(file_path: str) -> Dict[str, Any]:
                 f"The file contains {len(df)} rows and {len(df.columns)} columns.",
             ],
         }
-        
+
         # Add basic statistics for numeric columns
         numeric_columns = df.select_dtypes(include=['number']).columns
         for col in numeric_columns:
@@ -86,13 +86,13 @@ def analyze_excel(file_path: str) -> Dict[str, Any]:
                 "max": float(df[col].max()),
                 "std": float(df[col].std()),
             }
-        
+
         # ==========================================
         # END OF PLACEHOLDER CODE
         # ==========================================
-        
+
         return result
-        
+
     except Exception as e:
         # Return error information
         return {
@@ -111,11 +111,11 @@ def analyze_excel(file_path: str) -> Dict[str, Any]:
 def validate_excel_structure(df: pd.DataFrame, expected_columns: list) -> bool:
     """
     Validate that the Excel file has the expected structure.
-    
+
     Args:
         df: Pandas DataFrame
         expected_columns: List of expected column names
-        
+
     Returns:
         True if structure is valid, False otherwise
     """
@@ -125,11 +125,11 @@ def validate_excel_structure(df: pd.DataFrame, expected_columns: list) -> bool:
 def calculate_custom_metric(df: pd.DataFrame, column: str) -> float:
     """
     Example: Calculate a custom metric on a specific column.
-    
+
     Args:
         df: Pandas DataFrame
         column: Column name
-        
+
     Returns:
         Calculated metric value
     """
@@ -140,16 +140,16 @@ def calculate_custom_metric(df: pd.DataFrame, column: str) -> float:
 def generate_insights(df: pd.DataFrame) -> list:
     """
     Generate insights from the data.
-    
+
     Args:
         df: Pandas DataFrame
-        
+
     Returns:
         List of insight strings
     """
     insights = []
-    
+
     # Example: Add insights based on your analysis
     # insights.append(f"Total revenue: ${df['revenue'].sum():,.2f}")
-    
+
     return insights

@@ -84,10 +84,10 @@ async def dashboard_page(request: Request, user_id: str = Depends(require_auth))
     try:
         # Get user info
         user_data = await load_json_from_r2(f"users/{user_id}/profile.json")
-        
+
         # Get user's files
         files = await list_user_files(user_id)
-        
+
         return templates.TemplateResponse(
             "dashboard.html",
             {
@@ -131,10 +131,10 @@ async def register(request: Request, email: str = Form(...), password: str = For
     """Register a new user."""
     try:
         user_id = await create_user(email, password, full_name)
-        
+
         # Create session token
         token = create_access_token(data={"sub": user_id})
-        
+
         response = RedirectResponse(url="/dashboard", status_code=302)
         response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400)
         return response
@@ -159,7 +159,7 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
 
     # Create session token
     token = create_access_token(data={"sub": user_data["user_id"]})
-    
+
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(key="session_token", value=token, httponly=True, max_age=86400)
     return response

@@ -16,12 +16,12 @@ DATA_RETENTION_DAYS = int(os.getenv("DATA_RETENTION_DAYS", "60"))
 async def cleanup_old_files():
     """
     Delete files and reports older than the retention period.
-    
+
     This function runs daily and removes:
     - Excel files
     - Metadata
     - Analysis reports
-    
+
     for all files older than DATA_RETENTION_DAYS.
     """
     print(f"🧹 Starting data retention cleanup (retention: {DATA_RETENTION_DAYS} days)...")
@@ -92,7 +92,7 @@ def run_cleanup_sync():
 def start_scheduler():
     """
     Start the background scheduler for data retention.
-    
+
     The cleanup job runs daily at midnight UTC.
     """
     scheduler = BackgroundScheduler()

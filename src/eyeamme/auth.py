@@ -33,11 +33,11 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
     Create a JWT access token.
-    
+
     Args:
         data: Dictionary containing claims (must include 'sub' for user_id)
         expires_delta: Optional custom expiration time
-        
+
     Returns:
         Encoded JWT token
     """
@@ -55,10 +55,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_access_token(token: str) -> Optional[str]:
     """
     Decode and validate a JWT token.
-    
+
     Args:
         token: JWT token string
-        
+
     Returns:
         User ID if token is valid, None otherwise
     """
@@ -75,15 +75,15 @@ def decode_access_token(token: str) -> Optional[str]:
 async def create_user(email: str, password: str, full_name: str) -> str:
     """
     Create a new user account.
-    
+
     Args:
         email: User's email address
         password: Plain text password (will be hashed)
         full_name: User's full name
-        
+
     Returns:
         User ID
-        
+
     Raises:
         ValueError: If user already exists
     """
@@ -125,11 +125,11 @@ async def create_user(email: str, password: str, full_name: str) -> str:
 async def authenticate_user(email: str, password: str) -> Optional[dict]:
     """
     Authenticate a user with email and password.
-    
+
     Args:
         email: User's email address
         password: Plain text password
-        
+
     Returns:
         User data dictionary if authentication successful, None otherwise
     """
@@ -165,10 +165,10 @@ async def authenticate_user(email: str, password: str) -> Optional[dict]:
 async def get_user_by_id(user_id: str) -> Optional[dict]:
     """
     Get user data by user ID.
-    
+
     Args:
         user_id: User's unique identifier
-        
+
     Returns:
         User data dictionary if found, None otherwise
     """
