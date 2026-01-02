@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report - {{ report.filename }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="/dashboard" class="btn btn-secondary">← Back to Dashboard</a>
+            <h1>Analysis Report</h1>
+        </div>
+    </header>
+    
+    <main class="main-content">
+        <div class="card">
+            <div class="report-meta">
+                <h2>📄 {{ report.filename }}</h2>
+                <p>Analyzed on: {{ report.analysis_date[:19].replace('T', ' ') }}</p>
+            </div>
+            
+            <!-- Summary Section -->
+            {% if report.results.summary %}
+            <section class="report-section">
+                <h3>Summary</h3>
+                <div class="report-data">
+                    <table class="data-table">
+                        {% for key, value in report.results.summary.items() %}
+                        <tr>
+                            <th>{{ key.replace('_', ' ').title() }}</th>
+                            <td>
+                                {% if value is iterable and value is not string %}
+                                    {% if value is mapping %}
+                                        <pre>{{ value | tojson(indent=2) }}</pre>
+                                    {% else %}
+                                        {{ ', '.join(value | map('string')) }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+            </section>
+            {% endif %}
+            
+            <!-- Statistics Section -->
+            {% if report.results.statistics %}
+            <section class="report-section">
+                <h3>Statistics</h3>
+                <div class="report-data">
+                    {% for column, stats in report.results.statistics.items() %}
+                    <h4>{{ column }}</h4>
+                    <table class="data-table">
+                        {% for stat_name, stat_value in stats.items() %}
+                        <tr>
+                            <th>{{ stat_name.title() }}</th>
+                            <td>{{ "%.4f"|format(stat_value) if stat_value is number else stat_value }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+            
+            <!-- Insights Section -->
+            {% if report.results.insights %}
+            <section class="report-section">
+                <h3>Insights</h3>
+                <ul class="insights-list">
+                    {% for insight in report.results.insights %}
+                    <li>{{ insight }}</li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endif %}
+            
+            <!-- Data Preview Section -->
+            {% if report.results.data_preview %}
+            <section class="report-section">
+                <h3>Data Preview</h3>
+                
+                {% if report.results.data_preview.first_5_rows %}
+                <h4>First 5 Rows</h4>
+                <div class="table-container">
+                    <table class="data-table preview-table">
+                        <thead>
+                            <tr>
+                                {% for key in report.results.data_preview.first_5_rows[0].keys() %}
+                                <th>{{ key }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in report.results.data_preview.first_5_rows %}
+                            <tr>
+                                {% for value in row.values() %}
+                                <td>{{ value }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+            
+            <!-- Raw Data (for debugging) -->
+            {% if report.results.error %}
+            <section class="report-section">
+                <h3>Error</h3>
+                <div class="error">{{ report.results.message }}</div>
+            </section>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>
