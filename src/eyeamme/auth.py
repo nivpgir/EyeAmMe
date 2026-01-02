@@ -3,16 +3,17 @@ Authentication module for user management and JWT tokens.
 """
 from datetime import datetime, timedelta
 from typing import Optional
-import os
 import uuid
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from .storage import save_json_to_r2, load_json_from_r2
+from .config import Settings
+settings = Settings()
 
 # Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
+SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
